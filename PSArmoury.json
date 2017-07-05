@@ -1,0 +1,35 @@
+[
+    {
+        "Name":  "PowerSploit",
+        "Type":  "GitHubRepo",
+        "URL":  "https://api.github.com/repos/PowerShellMafia/PowerSploit",
+		"FileInclusionFilter":	"*.ps1",
+		"FileExclusionFilter":	"*.tests.ps1"		
+    },
+    {
+        "Name":  "Invoke-TheHash",
+        "Type":  "GitHubRepo",
+        "URL":  "https://api.github.com/repos/Kevin-Robertson/Invoke-TheHash",
+		"FileInclusionFilter":	"*.ps1",
+		"FileExclusionFilter":	""
+    },
+	{
+        "Name":  "nishang",
+        "Type":  "GitHubRepo",
+        "URL":  "https://api.github.com/repos/samratashok/nishang",
+		"FileInclusionFilter":	"*.ps1",
+		"FileExclusionFilter":	""
+    },
+	{
+        "Name":  "Mimikittenz",
+        "Type":  "GitHubItem",
+        "URL":  "https://raw.githubusercontent.com/putterpanda/mimikittenz/master/Invoke-mimikittenz.ps1"
+    },
+	{
+        "Name":  "ADT",
+        "Type":  "GitHubRepo",
+        "URL":  "https://api.github.com/repos/cfalta/ADT",
+		"FileInclusionFilter":	"*.ps1",
+		"FileExclusionFilter":	""
+    }
+]
