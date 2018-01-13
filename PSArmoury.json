@@ -21,9 +21,9 @@
 		"FileExclusionFilter":	""
     },
 	{
-        "Name":  "Mimikittenz",
+        "Name":  "Kerberoast",
         "Type":  "GitHubItem",
-        "URL":  "https://raw.githubusercontent.com/putterpanda/mimikittenz/master/Invoke-mimikittenz.ps1"
+        "URL":  "https://raw.githubusercontent.com/EmpireProject/Empire/master/data/module_source/credentials/Invoke-Kerberoast.ps1"
     },
 	{
         "Name":  "ADT",
