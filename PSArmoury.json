@@ -31,5 +31,10 @@
         "URL":  "https://api.github.com/repos/cfalta/ADT",
 		"FileInclusionFilter":	"*.ps1",
 		"FileExclusionFilter":	""
+    },
+		{
+        "Name":  "Sharphound",
+        "Type":  "GitHubItem",
+        "URL":  "https://github.com/BloodHoundAD/BloodHound/raw/master/Ingestors/SharpHound.ps1"
     }
 ]

