@@ -13,17 +13,19 @@
 		"FileInclusionFilter":	"*.ps1",
 		"FileExclusionFilter":	""
     },
-	{
-        "Name":  "nishang",
+    {
+        "Name":  "Inveigh",
         "Type":  "GitHubRepo",
-        "URL":  "https://api.github.com/repos/samratashok/nishang",
+        "URL":  "https://api.github.com/repos/Kevin-Robertson/Inveigh",
 		"FileInclusionFilter":	"*.ps1",
 		"FileExclusionFilter":	""
     },
-	{
-        "Name":  "Kerberoast",
-        "Type":  "GitHubItem",
-        "URL":  "https://raw.githubusercontent.com/EmpireProject/Empire/master/data/module_source/credentials/Invoke-Kerberoast.ps1"
+    {
+        "Name":  "Powermad",
+        "Type":  "GitHubRepo",
+        "URL":  "https://api.github.com/repos/Kevin-Robertson/powermad",
+		"FileInclusionFilter":	"*.ps1",
+		"FileExclusionFilter":	""
     },
 	{
         "Name":  "ADT",
@@ -36,5 +38,10 @@
         "Name":  "Sharphound",
         "Type":  "GitHubItem",
         "URL":  "https://github.com/BloodHoundAD/BloodHound/raw/master/Ingestors/SharpHound.ps1"
+    },
+	{
+        "Name":  "PowerViewDevBranch",
+        "Type":  "GitHubItem",
+        "URL":  "https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Recon/PowerView.ps1"
     }
 ]
