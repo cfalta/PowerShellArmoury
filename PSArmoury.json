@@ -4,7 +4,7 @@
         "Type":  "GitHubRepo",
         "URL":  "https://api.github.com/repos/PowerShellMafia/PowerSploit",
 		"FileInclusionFilter":	"*.ps1",
-		"FileExclusionFilter":	"*.tests.ps1"		
+        "FileExclusionFilter":	["*.tests.ps1","PowerView.ps1"]
     },
     {
         "Name":  "Invoke-TheHash",
@@ -27,13 +27,6 @@
 		"FileInclusionFilter":	"*.ps1",
 		"FileExclusionFilter":	""
     },
-	{
-        "Name":  "ADT",
-        "Type":  "GitHubRepo",
-        "URL":  "https://api.github.com/repos/cfalta/ADT",
-		"FileInclusionFilter":	"*.ps1",
-		"FileExclusionFilter":	""
-    },
 		{
         "Name":  "Sharphound",
         "Type":  "GitHubItem",
@@ -43,5 +36,10 @@
         "Name":  "PowerViewDevBranch",
         "Type":  "GitHubItem",
         "URL":  "https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Recon/PowerView.ps1"
+    },
+    {
+        "Name":  "ADProfiler",
+        "Type":  "GitHubItem",
+        "URL":  "https://raw.githubusercontent.com/cfalta/PoshRandom/master/Invoke-Profiler.ps1"
     }
 ]

@@ -84,13 +84,6 @@ Description
 
 This will just validate the config at ".\MyArmoury.json" without executing anything.
 
-
-.NOTES
-
-This script has been inspired by the "New-EncryptedScriptLoader" function of the ADT toolkit.
-
-See https://github.com/cfalta/ADT
-
 .LINK
 
 https://github.com/cfalta/PowerShellArmoury
@@ -373,16 +366,22 @@ function Get-PSAGitHubRepo([string]$Name)
 
                 if(($PSA.FileExclusionFilter))
                 {                
-                    if($ContentItem.Name -like $PSA.FileExclusionFilter)
-                    {
-                        $Include = $False
+                    foreach($f in $PSA.FileExclusionFilter)
+                    { 
+                        if($ContentItem.Name -like $f)
+                        {
+                            $Include = $False
+                        }
                     }
                 }
                 if(($PSA.FileInclusionFilter))
                 {
-                    if($ContentItem.Name -notlike $PSA.FileInclusionFilter)
-                    {
-                        $Include = $False
+                    foreach($f in $PSA.FileInclusionFilter)
+                    { 
+                        if($ContentItem.Name -notlike $f)
+                        {
+                            $Include = $False
+                        }
                     }
                 }
 
