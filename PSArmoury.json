@@ -38,8 +38,10 @@
         "URL":  "https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Recon/PowerView.ps1"
     },
     {
-        "Name":  "ADProfiler",
-        "Type":  "GitHubItem",
-        "URL":  "https://raw.githubusercontent.com/cfalta/PoshRandom/master/Invoke-Profiler.ps1"
+        "Name":  "PoshRandom",
+        "Type":  "GitHubRepo",
+        "URL":  "https://api.github.com/repos/cfalta/PoshRandom",
+        "FileInclusionFilter":	"*.ps1",
+		"FileExclusionFilter":	""
     }
 ]
