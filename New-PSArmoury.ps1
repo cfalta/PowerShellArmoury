@@ -652,12 +652,6 @@ Description
 
 Encrypts the message "Hello World" and returns the result as a custom psobject.
 
-.NOTES
-
-.LINK
-
-https://github.com/cfalta/ADT
-
 #>
 
     [CmdletBinding()]
@@ -756,12 +750,6 @@ Description
 -----------
 
 Encrypts the message "Hello World" and returns the result as a custom psobject with the properties "IV" and "Ciphertext".
-
-.NOTES
-
-.LINK
-
-https://github.com/cfalta/ADT
 
 #>
 
