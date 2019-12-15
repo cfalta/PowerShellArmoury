@@ -91,35 +91,40 @@ https://github.com/cfalta/PowerShellArmoury
 #>
 [CmdletBinding()]
     Param (
-        [Parameter(Position = 0, Mandatory = $False)]
+        [Parameter(Mandatory = $False)]
         [ValidateNotNullorEmpty()]
         [String]
         $Path=".\MyArmoury.ps1",
 
-        [Parameter(Position = 1, Mandatory = $False)]
+        [Parameter(Mandatory = $False)]
+        [ValidateScript({Test-Path $_})]
+        [String]
+        $FromFile,
+
+        [Parameter(Mandatory = $False)]
         [ValidateNotNullorEmpty()]
         [String]
         $Config,
 
-        [Parameter(Position = 2, Mandatory = $False)]
+        [Parameter(Mandatory = $False)]
         [ValidateNotNullorEmpty()]
         [String]
         $Password,
 
-        [Parameter(Position = 3, Mandatory = $False)]
+        [Parameter(Mandatory = $False)]
         [ValidateNotNullorEmpty()]
         [String]
         $Salt,
 
-        [Parameter(Position = 4, Mandatory = $False)]
+        [Parameter(Mandatory = $False)]
         [Switch]
         $OmitPassword,
 
-        [Parameter(Position = 5, Mandatory = $False)]
+        [Parameter(Mandatory = $False)]
         [Switch]
         $ValidateOnly,
 
-        [Parameter(Position = 6, Mandatory = $False)]
+        [Parameter(Mandatory = $False)]
         [Switch]
         $Use3DES
     )
@@ -320,29 +325,55 @@ try {`$Message | Invoke-Expression } catch { Write-Warning "Error loading functi
 
 }
 
+function Invoke-GithubAPI
+{
+    [CmdletBinding()]
+    Param (
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Get","Post")]
+        [String]
+        $Method,
+        
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullorEmpty()]
+        [String]
+        $URI)
+
+#Create authorization header manually cause -Authentication param is not supported in earlier PS versions
+$CredentialsBase64 = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes(($global:GitHubCredentials.Username + ":" + $global:GitHubCredentials.GetNetworkCredential().Password)))
+$BasicAuthHeader = ("Basic " + $CredentialsBase64)
+
+$Params = @{
+    'Method'        = $Method
+    'URI'           = $URI
+    'Headers'       = @{ "User-Agent" = "TotallyLegit"; "Authorization"=$BasicAuthHeader}
+    'Verbose'       = $False
+}       
+
+$Response = Invoke-RestMethod @Params
+
+$Response
+
+}
+
 function Get-PSAGitHubRepo([string]$Name)
 {
     $PSA = $global:PSArmouryConfig | ? {$_.Name -eq $Name}
     $BaseURL = $PSA.URL
-    $UserAgent = $global:UserAgent
-
-    #Create authorization header manually
-
-    $CredentialsBase64 = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes(($global:GitHubCredentials.Username + ":" + $global:GitHubCredentials.GetNetworkCredential().Password)))
-    $BasicAuthHeader = ("Basic " + $CredentialsBase64)
-
-    $WebClient = New-Object System.Net.WebClient
-    $WebClient.Headers.Add("User-Agent",$UserAgent)
-    $WebClient.Headers.Add("Authorization",$BasicAuthHeader)
     
-    $Response = $WebClient.DownloadString($BaseURL) | ConvertFrom-Json
-    $ContentURL = $Response.contents_url.Substring(0,$Response.contents_url.LastIndexOf("/"))
+    $Response = Invoke-GithubAPI -Method Get -URI $BaseURL
+    
+    if($PSA.Branch)
+    {
+        $ContentURL = $Response.contents_url.Substring(0,$Response.contents_url.LastIndexOf("/")) + "?ref=" + $PSA.Branch
+    }
+    else {
+        $ContentURL = $Response.contents_url.Substring(0,$Response.contents_url.LastIndexOf("/"))
+    }
 
-    $WebClient.Headers.Add("User-Agent",$UserAgent)
-    $ContentIndex = $WebClient.DownloadString($ContentURL) | ConvertFrom-Json
+    $ContentIndex = Invoke-GithubAPI -Method Get -URI $ContentURL
 
     $NewItem = $True
-    $FileList = @()
 
     #Discover all files in the repository and download them
     while($NewItem)
@@ -354,8 +385,7 @@ function Get-PSAGitHubRepo([string]$Name)
         {
             if($ContentItem.type -eq "dir")
             {
-                $WebClient.Headers.Add("User-Agent",$UserAgent)
-                $ContentIndex2 += $WebClient.DownloadString($ContentItem.URL) | ConvertFrom-Json
+                $ContentIndex2 += (Invoke-GithubAPI -Method Get -URI $ContentItem.URL)
                 
                 $NewItem = $True
             }
@@ -388,11 +418,10 @@ function Get-PSAGitHubRepo([string]$Name)
                 if($Include)
                 {
                     Write-Verbose ("PSArmoury: trying to download " + $PSA.Name + "/" + $ContentItem.Name)
-                    $WebClient.Headers.Add("User-Agent",$UserAgent)
-                    
+                                       
                     try
                     {
-                        $Response = $WebClient.DownloadString($ContentItem.download_url)
+                        $Response = Invoke-GithubAPI -Method Get -URI $ContentItem.download_url
 
                         $PSO = New-Object -TypeName PSObject
                         $PSO | Add-Member -MemberType NoteProperty -Name Repository -Value $PSA.Name
@@ -414,79 +443,128 @@ function Get-PSAGitHubRepo([string]$Name)
 
 }
 
+function Get-PSALocalFile([string]$Name)
+{
+    $PSA = $global:PSArmouryConfig | ? {$_.Name -eq $Name}
+    if(Test-Path $PSA.URL)
+    {
+        if((Get-Item -LiteralPath $PSA.URL).PSISContainer)
+        {
+            $Files = Get-Childitem -LiteralPath $PSA.URL -Filter *.ps1
+        }
+        else 
+        {
+            $Files = Get-Item -LiteralPath $PSA.URL         
+        }
+
+        foreach($f in $Files)
+        {
+            $PSO = New-Object -TypeName PSObject
+            $PSO | Add-Member -MemberType NoteProperty -Name Repository -Value $PSA.Name
+            $PSO | Add-Member -MemberType NoteProperty -Name Name -Value $f.name
+            $PSO | Add-Member -MemberType NoteProperty -Name Code -Value (get-content -raw $f.fullname)
+    
+            $global:PSAInventory += $PSO
+        }
+
+    }
+    else {
+        Write-Warning ("PSArmoury: error while reading local file " + $PSA.URL)
+    }
+}
 
 function Get-PSASimpleWebDownload([string]$Name)
 {
     $PSA = $global:PSArmouryConfig | ? {$_.Name -eq $Name}
     $BaseURL = $PSA.URL
     $ItemName = $BaseURL.Substring($BaseURL.LastIndexOf("/")+1)
-    $UserAgent = $global:UserAgent
-
-    $WebClient = New-Object System.Net.WebClient
-    $WebClient.Headers.Add("User-Agent",$UserAgent)
-    
+ 
     if($PSA.Type -eq "GitHubItem")
     {
-        $CredentialsBase64 = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes(($global:GitHubCredentials.Username + ":" + $global:GitHubCredentials.GetNetworkCredential().Password)))
-        $BasicAuthHeader = ("Basic " + $CredentialsBase64)
-        $WebClient.Headers.Add("Authorization",$BasicAuthHeader)
+        try
+        {
+            $Response = Invoke-GithubAPI -Method Get -URI $BaseURL
+
+            $PSO = New-Object -TypeName PSObject
+            $PSO | Add-Member -MemberType NoteProperty -Name Repository -Value $PSA.Name
+            $PSO | Add-Member -MemberType NoteProperty -Name Name -Value $ItemName
+            $PSO | Add-Member -MemberType NoteProperty -Name Code -Value $Response
+    
+            $global:PSAInventory += $PSO
+        }
+        catch
+        {
+            Write-Warning ("PSArmoury: error while downloading " + $PSA.Name + "/" + $ItemName)
+        }
+    }
+    else 
+    { 
+        try
+        {
+            $Response = Invoke-RestMethod -Method Get -Uri $BaseURL -Verbose:$false
+
+            $PSO = New-Object -TypeName PSObject
+            $PSO | Add-Member -MemberType NoteProperty -Name Repository -Value $PSA.Name
+            $PSO | Add-Member -MemberType NoteProperty -Name Name -Value $ItemName
+            $PSO | Add-Member -MemberType NoteProperty -Name Code -Value $Response
+
+            $global:PSAInventory += $PSO
+        }
+        catch
+        {
+            Write-Warning ("PSArmoury: error while downloading " + $PSA.Name + "/" + $ItemName)
+        }
     }
 
-    try
-    {
-        $Response = $WebClient.DownloadString($BaseURL) 
-
-        $PSO = New-Object -TypeName PSObject
-        $PSO | Add-Member -MemberType NoteProperty -Name Repository -Value $PSA.Name
-        $PSO | Add-Member -MemberType NoteProperty -Name Name -Value $ItemName
-        $PSO | Add-Member -MemberType NoteProperty -Name Code -Value $Response
-
-        $global:PSAInventory += $PSO
-    }
-    catch
-    {
-        Write-Warning ("PSArmoury: error while downloading " + $PSA.Name + "/" + $ItemName)
-    }
 }
 
+function Add-Inventory
+{
+    $Content = 'function Get-PSArmoury{$i=@('
+
+    foreach($Item in $global:PSAInventory)
+    {
+        $Content = $Content + '"' + $Item.Name + '",'
+    }
+
+    $Content = $Content.Trim(",")
+    $Content = $Content + ');$i}'
+
+    $PSO = New-Object -TypeName PSObject
+    $PSO | Add-Member -MemberType NoteProperty -Name Repository -Value "Inventory"
+    $PSO | Add-Member -MemberType NoteProperty -Name Name -Value "Inventory"
+    $PSO | Add-Member -MemberType NoteProperty -Name Code -Value $Content
+
+    $global:PSAInventory += $PSO
+}
 
 ### MAIN ###
 
 $ScriptRequirements = $True
 
-if($Config)
+if($FromFile)
 {
-    try
-    { 
-        $global:PSArmouryConfig = Get-Content -Raw $Config | ConvertFrom-Json
-        Write-Output "PSArmoury: configuration loaded successfully"
-    }
-    catch
-    {
-        Write-Warning "PSArmoury: error while loading configuration file."
-        $ScriptRequirements = $False
-    }
+    $PSO = New-Object -TypeName PSObject
+    $PSO | Add-Member -MemberType NoteProperty -Name "Name" -Value "LocalRepo"
+    $PSO | Add-Member -MemberType NoteProperty -Name "Type" -Value "LocalFile"
+    $PSO | Add-Member -MemberType NoteProperty -Name "URL" -Value $FromFile
+
+    $global:PSArmouryConfig = @()
+    $global:PSArmouryConfig += $PSO
 }
-else
+else 
 {
-    if($PSArmoury)
+
+    if($Config)
     {
-        if((Test-Path -LiteralPath $PSArmoury))
-        {
-                try
-                { 
-                    $global:PSArmouryConfig = Get-Content -Raw $PSArmoury | ConvertFrom-Json
-                    Write-Output "PSArmoury: configuration loaded successfully"
-                }
-                catch
-                {
-                    Write-Warning "PSArmoury: error while loading configuration file."
-                    $ScriptRequirements = $False
-                }
+        try
+        { 
+            $global:PSArmouryConfig = Get-Content -Raw $Config | ConvertFrom-Json
+            Write-Output "PSArmoury: configuration loaded successfully"
         }
-        else
+        catch
         {
-            Write-Warning "PSArmoury: environment variable is invalid. Please check your configuration and try again."
+            Write-Warning "PSArmoury: error while loading configuration file."
             $ScriptRequirements = $False
         }
     }
@@ -495,12 +573,12 @@ else
         Write-Warning "PSArmoury: No configuration file found. Please provide a valid configuration and try again."
         $ScriptRequirements = $False
     }
-}
 
-if($ValidateOnly)
-{
-    Test-PSAConfig
-    $ScriptRequirements = $False
+    if($ValidateOnly)
+    {
+        Test-PSAConfig
+        $ScriptRequirements = $False
+    }
 }
 
 if($Use3DES)
@@ -518,7 +596,6 @@ if($ScriptRequirements)
 
     $global:PSAInventory = @()
     $global:GitHubCredentials = $null
-    $global:UserAgent = "Anything"
 
 	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 	
@@ -557,6 +634,13 @@ if($ScriptRequirements)
 
             }
 
+            LocalFile{
+
+                Write-Output ("PSArmoury: processing repository " + $PSA.Name)
+                Get-PSALocalFile($PSA.Name)
+
+            }
+
             default{
 
             }
@@ -567,6 +651,9 @@ if($ScriptRequirements)
 
     if($global:PSAInventory)
     {
+
+        Add-Inventory
+
         $Identifier = 0
         $PSACryptoInventory = @()
 

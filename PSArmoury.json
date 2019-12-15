@@ -3,6 +3,7 @@
         "Name":  "PowerSploit",
         "Type":  "GitHubRepo",
         "URL":  "https://api.github.com/repos/PowerShellMafia/PowerSploit",
+        "Branch": "master",
 		"FileInclusionFilter":	"*.ps1",
         "FileExclusionFilter":	["*.tests.ps1","PowerView.ps1"]
     },
