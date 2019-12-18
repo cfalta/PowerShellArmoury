@@ -3,9 +3,9 @@
         "Name":  "PowerSploit",
         "Type":  "GitHubRepo",
         "URL":  "https://api.github.com/repos/PowerShellMafia/PowerSploit",
-        "Branch": "master",
+        "Branch": "dev",
 		"FileInclusionFilter":	"*.ps1",
-        "FileExclusionFilter":	["*.tests.ps1","PowerView.ps1"]
+        "FileExclusionFilter":	["*.tests.ps1"]
     },
     {
         "Name":  "Invoke-TheHash",
@@ -28,15 +28,10 @@
 		"FileInclusionFilter":	"*.ps1",
 		"FileExclusionFilter":	""
     },
-		{
+    {
         "Name":  "Sharphound",
         "Type":  "GitHubItem",
         "URL":  "https://github.com/BloodHoundAD/BloodHound/raw/master/Ingestors/SharpHound.ps1"
-    },
-	{
-        "Name":  "PowerViewDevBranch",
-        "Type":  "GitHubItem",
-        "URL":  "https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Recon/PowerView.ps1"
     },
     {
         "Name":  "PoshRandom",
