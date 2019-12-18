@@ -16,8 +16,16 @@ Import-Module .\New-PSArmoury.ps1
 New-PSArmoury -Password password -Salt salt -Config .\PSArmoury.json
 ```
 
-Use Armoury
+Decrypt Armoury
 
 ``` powershell
 Get-Content -raw .\MyArmoury.ps1 | iex
+```
+
+Use Armoury
+
+``` powershell
+Invoke-AllCheck
+Invoke-Bloodhound
+Get-DomainGroupMember -Identity "Domain Admins" -Recurse
 ```
