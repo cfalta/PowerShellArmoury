@@ -208,6 +208,7 @@ function Get-Password([int]$Length)
 function Write-LoaderFile($EncryptedScriptFileObjects)
 {
 
+#Shamelessly copied from the great example of @_rastamouse: https://gist.github.com/rasta-mouse/af009f49229c856dc26e3a243db185ec
 $DLLMitigationPolicy=@"
     using System;
     using System.Diagnostics;
