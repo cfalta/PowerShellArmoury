@@ -8,7 +8,8 @@ You do not have to hassle with updating nishang, powersploit, ... manually. Just
 In addition, your new and shiny armoury is encrypted and includes a bypass for AMSI, so you dont have to worry about AV.
 
 Note: you have to provide a valid github account as well as a personal access token, so the script can properly use the github API.
-
+</br>
+</br>
 
 ## Example usage
 
