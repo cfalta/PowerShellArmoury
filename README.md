@@ -11,9 +11,12 @@ Note: you have to provide a valid github account as well as a personal access to
 </br>
 </br>
 
+
 ## Example usage
 
-Use the commands below to create an armoury with all default settings. You can start with the sample config file in this repository for inspiration.
+You can find a very brief introduction below. Also have a look a these two blog posts [here](https://cyberstoph.org/posts/2019/12/evading-anti-virus-with-powershell-armoury/) and [here](https://cyberstoph.org/posts/2020/02/psarmoury-1.4-now-with-even-more-armour/).
+
+Use the following commands to create an armoury with all default settings. You can start with the sample config file in this repository for inspiration.
 
 ``` powershell
 . .\New-PSArmoury.ps1
@@ -30,7 +33,7 @@ cat -raw .\MyArmoury.ps1 | iex
 Loading your armoury invokes the following steps:
 * Load all encrypted powershell functions into the current session as part of an array
 * Disable AMSI
-* Disable console history (can help preventing detection)
+* Disable console history (can help prevent detection)
 * Decrypt everything and pipe into iex 
 
 After that, all powershell code you put in the armoury will be available. Just invoke the cmdlets as usual like this
