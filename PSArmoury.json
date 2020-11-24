@@ -34,10 +34,8 @@
         "URL":  "https://github.com/BloodHoundAD/BloodHound/raw/master/Ingestors/SharpHound.ps1"
     },
     {
-        "Name":  "PoshRandom",
-        "Type":  "GitHubRepo",
-        "URL":  "https://api.github.com/repos/cfalta/PoshRandom",
-        "FileInclusionFilter":	"*.ps1",
-		"FileExclusionFilter":	""
+        "Name":  "Invoke-Rubeus",
+        "Type":  "GitHubItem",
+        "URL":  "https://github.com/cfalta/PoshRandom/raw/master/Invoke-Rubeus.ps1"
     }
 ]
