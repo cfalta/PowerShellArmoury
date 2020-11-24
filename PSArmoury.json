@@ -31,11 +31,16 @@
     {
         "Name":  "Sharphound",
         "Type":  "GitHubItem",
-        "URL":  "https://github.com/BloodHoundAD/BloodHound/raw/master/Ingestors/SharpHound.ps1"
+        "URL":  "https://raw.githubusercontent.com/BloodHoundAD/BloodHound/master/Collectors/SharpHound.ps1"
     },
     {
         "Name":  "Invoke-Rubeus",
         "Type":  "GitHubItem",
         "URL":  "https://github.com/cfalta/PoshRandom/raw/master/Invoke-Rubeus.ps1"
+    },
+    {
+        "Name":  "PowerSharpPack",
+        "Type":  "GitHubItem",
+        "URL":  "https://raw.githubusercontent.com/S3cur3Th1sSh1t/PowerSharpPack/master/PowerSharpPack.ps1"
     }
 ]

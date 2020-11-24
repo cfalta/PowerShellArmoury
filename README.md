@@ -40,7 +40,7 @@ Loading your armoury invokes the following steps:
 After that, all powershell code you put in the armoury will be available. Just invoke the cmdlets as usual like this
 
 ``` powershell
-Invoke-AllCheck
+Invoke-AllChecks
 Invoke-Bloodhound
 Get-DomainGroupMember -Identity "Domain Admins" -Recurse
 ```
