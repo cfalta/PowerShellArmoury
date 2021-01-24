@@ -1,7 +1,7 @@
 [
     {
         "Name":  "PowerSploit",
-        "Type":  "GitHubRepo",
+        "Type":  "GitHub",
         "URL":  "https://api.github.com/repos/PowerShellMafia/PowerSploit",
         "Branch": "dev",
 		"FileInclusionFilter":	"*.ps1",
@@ -9,38 +9,34 @@
     },
     {
         "Name":  "Invoke-TheHash",
-        "Type":  "GitHubRepo",
+        "Type":  "GitHub",
         "URL":  "https://api.github.com/repos/Kevin-Robertson/Invoke-TheHash",
 		"FileInclusionFilter":	"*.ps1",
 		"FileExclusionFilter":	""
     },
     {
         "Name":  "Inveigh",
-        "Type":  "GitHubRepo",
+        "Type":  "GitHub",
         "URL":  "https://api.github.com/repos/Kevin-Robertson/Inveigh",
 		"FileInclusionFilter":	"*.ps1",
 		"FileExclusionFilter":	""
     },
     {
         "Name":  "Powermad",
-        "Type":  "GitHubRepo",
+        "Type":  "GitHub",
         "URL":  "https://api.github.com/repos/Kevin-Robertson/powermad",
 		"FileInclusionFilter":	"*.ps1",
 		"FileExclusionFilter":	""
     },
     {
         "Name":  "Sharphound",
-        "Type":  "GitHubItem",
-        "URL":  "https://raw.githubusercontent.com/BloodHoundAD/BloodHound/master/Collectors/SharpHound.ps1"
+        "Type":  "GitHub",
+        "URL":  "https://github.com/BloodHoundAD/BloodHound/raw/master/Collectors/SharpHound.ps1"
     },
     {
         "Name":  "Invoke-Rubeus",
-        "Type":  "GitHubItem",
+        "Type":  "GitHub",
         "URL":  "https://github.com/cfalta/PoshRandom/raw/master/Invoke-Rubeus.ps1"
-    },
-    {
-        "Name":  "PowerSharpPack",
-        "Type":  "GitHubItem",
-        "URL":  "https://raw.githubusercontent.com/S3cur3Th1sSh1t/PowerSharpPack/master/PowerSharpPack.ps1"
     }
 ]
+

@@ -12,6 +12,84 @@ Follow [this guide](https://docs.github.com/en/github/authenticating-to-github/c
 </br>
 </br>
 
+## Config reference
+
+The config file needs to be a valid json that consists of a single array with one or more objects, where every object is interpreted as a single script source. Every object has the following attributes
+
+**Name (Mandatory)**
+
+A name of your choice to identify the script included in this object. This is just meant as a reference for yourself.
+
+**URL (Mandatory)**
+
+The location to get the script content from. This can be a URL to a web resource (https://) or a local path (C:\) or a network resource (\\...). The URL is thrown into Net.Webclient or Powershells Get-Item respectively. So basically every format that one of those two can handle by default should work.
+
+**Type (Mandatory)**
+
+This gives a hint about the script location to the armoury creator. There are three valid types:
+
+- GitHub
+    Will prompt for credentials so we can authenticate against the github API. Will also try to distinguish between a "raw" URL that directly poins to a file or a URL that points to a repository. If the URL points to a repository, the script will automatically search all Powershell files in that repository and include them. Like "https://github.com/cfalta/PoshRandom"
+- WebDownloadSimple
+    Means a file that can be downloaded without authentication or stuff using an HTTP GET. Like "http://mywebserver.com/file.ps1"
+- LocalFile
+    A file on disk like "C:\temp\test.ps1". If the path points to a directory, all files (recursive) with the extension ".ps1" will be included. 
+
+**FileInclusionFilter (Optional)**
+
+Will only be interpreted in an object of type "GitHub". Will be matched with Powershells "like" comparison operator against the whole filename so keep in mind that you need to include the wildcards yourself. Don't forget to include a star (\*) if you want to match part of a filename. "*.ps1" means all files that end with ".ps1" but ".ps1" just means ".ps1".
+
+You don't have to include a filter but if you do, you have to use it. An empty InclusionFilter means no files.
+
+**FileExclusionFilter (Optional)**
+
+Like the InclusionFilter but obviously the other way round. Exclusion takes precedence.
+
+## Arguments
+
+See inline Powershell help (man -full New-PSArmoury) for more details.
+
+**-Path**
+
+The path to your new armoury file. The default ist ".\MyArmoury.ps1"
+
+**-FromFile**
+
+Load your Powershell scripts directly from a local folder or file and you don't have to provide a config file.
+
+**-Config**
+
+The path to your JSON-config file. Have a look at the sample that comes with this script for ideas.
+
+**-Password**
+
+The password that will be used to encrypt your armoury. If you do not provide a password, the script will generate a random one.
+
+Please note: the main goal of encryption in this script is to circumvent anti-virus. If confidentiality is important to you, use the "-OmitPassword" switch. Otherwise your password and salt will be stored in your armoury in PLAINTEXT!
+
+**-Salt**
+
+The salt that will be used together with your password to generate an AES encryption key. If you do not provide a salt, the script will generate a random one.
+
+Please note: the main goal of encryption in this script is to circumvent anti-virus. If confidentiality is important to you, use the "-OmitPassword" switch. Otherwise your password and salt will be stored in your armoury in PLAINTEXT!
+
+**-OmitPassword**
+
+This switch will remove the plaintext password from the final armoury script. Use this if confidentiality is important to you.
+
+**-ValidateOnly**
+
+Use this together with "-Config" to let the script validate the basic syntax of your JSON config file without executing it.
+
+**-Use3DES**
+
+Encrypts with 3DES instead of AES.
+
+**-EnhancedArmour**
+
+Instructs your armoury to require a protectecd PowerShell process. Therefore on first execution, your armoury will not load but spawn a new PowerShell that is set to run with BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON process mitigation. This prevents non-microsoft DLLs (e.g. AV/EDR products) to load into PowerShell.
+Shamelessly copied from the great @_rastamouse: https://gist.github.com/rasta-mouse/af009f49229c856dc26e3a243db185ec
+
 
 ## Example usage
 
@@ -40,7 +118,7 @@ Loading your armoury invokes the following steps:
 After that, all powershell code you put in the armoury will be available. Just invoke the cmdlets as usual like this
 
 ``` powershell
-Invoke-AllChecks
+Invoke-Rubeus -Command "kerberoast /stats"
 Invoke-Bloodhound
 Get-DomainGroupMember -Identity "Domain Admins" -Recurse
 ```
