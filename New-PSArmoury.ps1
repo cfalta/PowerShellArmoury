@@ -152,7 +152,11 @@ https://github.com/cfalta/PowerShellArmoury
 
         [Parameter(Mandatory = $False)]
         [Switch]
-        $EnhancedArmour
+        $EnhancedArmour,
+
+        [Parameter(Mandatory = $False)]
+        [Switch]
+        $Compression
     )
 
 function Test-PSAConfig
@@ -492,6 +496,8 @@ try {`$Message | Invoke-Expression } catch { Write-Warning "Error loading functi
 }
 else {
     
+if($Compression)
+{    
 #This is the decryption stub used in the loader file
 $DecryptionStub=@"
 if(`$Password -and `$Salt)
@@ -533,6 +539,50 @@ try {`$Message | Invoke-Expression } catch { Write-Warning "Error loading functi
 }
 }
 "@
+}
+else {
+
+    $DecryptionStub=@"
+    if(`$Password -and `$Salt)
+    {
+    `$Index = 0
+    foreach(`$ef in `$EncryptedFunctions)
+    {
+    
+    [byte[]]`$CipherText = [Convert]::FromBase64String(`$ef[1])
+    [byte[]]`$InitVector = [Convert]::FromBase64String(`$ef[0])
+    
+    `$AES = [System.Security.Cryptography.Aes]::Create()
+    
+    `$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes(`$Password),[Text.Encoding]::ASCII.GetBytes(`$Salt),"SHA256",5)
+    
+    `$AES.Padding = "PKCS7"
+    `$AES.KeySize = 256
+    `$AES.Key = `$Key.GetBytes(32)
+    `$AES.IV = `$InitVector
+    
+    `$AESDecryptor = `$AES.CreateDecryptor()
+    
+    `$MemoryStream = New-Object System.IO.MemoryStream(`$CipherText,`$True)
+    `$CryptoStream = New-Object System.Security.Cryptography.CryptoStream(`$MemoryStream,`$AESDecryptor,[System.Security.Cryptography.CryptoStreamMode]::Read)
+    
+    `$StreamReader = New-Object System.IO.StreamReader(`$CryptoStream)
+
+    `$Message = `$StreamReader.ReadToEnd()
+    
+    `$CryptoStream.Close()
+    `$MemoryStream.Close()
+    `$AES.Clear()
+    
+    try {`$Message | Invoke-Expression } catch { Write-Warning "Error loading function number `$Index. Beware that this only affects the mentioned function so everything else should work fine." }
+    
+    `$Index++
+    }
+    }
+"@
+}
+
+
 }
     #Delete the outputfile if it exists
 
@@ -930,7 +980,14 @@ if($ScriptRequirements)
                 $Crypt = Get-3DESEncrypt -Message $Item.Code -Password $Password -Salt $Salt
             }
             else {
-                $Crypt = Get-AESEncrypt -Message $Item.Code -Password $Password -Salt $Salt -Compression             
+                if($Compression)
+                {
+                    $Crypt = Get-AESEncrypt -Message $Item.Code -Password $Password -Salt $Salt -Compression  
+                }
+                else {
+                    $Crypt = Get-AESEncrypt -Message $Item.Code -Password $Password -Salt $Salt
+                }
+                           
             }
 
 
