@@ -29,11 +29,11 @@ The location to get the script content from. This can be a URL to a web resource
 This gives a hint about the script location to the armoury creator. There are three valid types:
 
 - GitHub
-    Will prompt for credentials so we can authenticate against the github API. Will also try to distinguish between a "raw" URL that directly poins to a file or a URL that points to a repository. If the URL points to a repository, the script will automatically search all Powershell files in that repository and include them. Like "https://github.com/cfalta/PoshRandom"
+    - Will prompt for credentials so we can authenticate against the github API. Will also try to distinguish between a "raw" URL that directly poins to a file or a URL that points to a repository. If the URL points to a repository, the script will automatically search all Powershell files in that repository and include them. Like "https://github.com/cfalta/PoshRandom"
 - WebDownloadSimple
-    Means a file that can be downloaded without authentication or stuff using an HTTP GET. Like "http://mywebserver.com/file.ps1"
+    - Means a file that can be downloaded without authentication or stuff using an HTTP GET. Like "http://mywebserver.com/file.ps1"
 - LocalFile
-    A file on disk like "C:\temp\test.ps1". If the path points to a directory, all files (recursive) with the extension ".ps1" will be included. 
+    - A file on disk like "C:\temp\test.ps1". If the path points to a directory, all files (recursive) with the extension ".ps1" will be included. 
 
 **FileInclusionFilter (Optional)**
 
