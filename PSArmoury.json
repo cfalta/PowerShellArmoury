@@ -1,18 +1,8 @@
 [
     {
-        "Name":  "PowerSploit",
+        "Name":  "PowerView",
         "Type":  "GitHub",
-        "URL":  "https://api.github.com/repos/PowerShellMafia/PowerSploit",
-        "Branch": "dev",
-		"FileInclusionFilter":	"*.ps1",
-        "FileExclusionFilter":	["*.tests.ps1"]
-    },
-    {
-        "Name":  "Invoke-TheHash",
-        "Type":  "GitHub",
-        "URL":  "https://api.github.com/repos/Kevin-Robertson/Invoke-TheHash",
-		"FileInclusionFilter":	"*.ps1",
-		"FileExclusionFilter":	""
+        "URL":  "https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/master/Recon/PowerView.ps1"
     },
     {
         "Name":  "Inveigh",

