@@ -1,3 +1,7 @@
+> [!IMPORTANT]  
+> This repository is now archived. Though it was a fun journey, I think PSArmoury has outlived its usefulness.
+</br>
+
 # PowerShellArmoury
 
 <img align="left" width="200" height="300" src="https://user-images.githubusercontent.com/7213829/72599954-fae92780-3912-11ea-9ad4-7da273ee75dd.png">
